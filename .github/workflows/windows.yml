@@ -42,20 +42,17 @@ jobs:
         echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
         echo -e "\e[32mTailscale IP: $TS_IP\e[0m"
 
-    - name: Run Desktop RDP Container with Firefox
+    - name: Run Desktop RDP Container
       run: |
         echo -e "\e[32mStarting Lightweight RDP Docker Container...\e[0m"
         docker run -d \
           --name=ubuntu-rdp \
-          -e PUID=1000 \
-          -e PGID=1000 \
-          -e TZ=America/Sao_Paulo \
-          -e USERNAME=runneradmin \
+          -e CUSTOM_USER=runneradmin \
           -e PASSWORD=P@ssw0rd! \
           -p 3389:3389 \
           --shm-size=2gb \
           --restart unless-stopped \
-          lscr.io/linuxserver/rdesktop:ubuntu-xfce
+          danielguerra/ubuntu-xrdp
           
         sleep 10
         echo -e "\e[32mInstalling Firefox inside container...\e[0m"
@@ -73,12 +70,6 @@ jobs:
         echo -e "\e[37m║ Username: runneradmin                            ║\e[0m"
         echo -e "\e[37m║ Password: P@ssw0rd!                              ║\e[0m"
         echo -e "\e[36m╚══════════════════════════════════════════════════╝\e[0m"
-        
-        echo -e "\e[33m\nInstruções de Acesso:\e[0m"
-        echo -e "\e[37m1. Conecte no Tailscale no seu dispositivo\e[0m"
-        echo -e "\e[37m2. Abra o app Conexão de Área de Trabalho (Windows App / RDP)\e[0m"
-        echo -e "\e[37m3. Digite o IP: $TAILSCALE_IP\e[0m"
-        echo -e "\e[37m4. Entre com o usuário 'runneradmin' e senha 'P@ssw0rd!'\e[0m"
 
     - name: Keep Session Alive
       run: |
