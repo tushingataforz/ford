@@ -35,6 +35,15 @@ jobs:
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+
+    - name: Optimize Windows for Lightweight Performance
+      run: |
+        Write-Host "Applying lightweight visual settings..." -ForegroundColor Green
+        # Desativa animações, esmaecimento e efeitos visuais para melhor desempenho
+        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name "VisualFXSetting" -Value 2
+        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name "UserPreferencesMask" -Value ([byte[]](0x90,0x12,0x03,0x80,0x10,0x00,0x00,0x00))
+        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
+        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name "MinAnimate" -Value "0"
         
     - name: Create User Account
       run: |
@@ -67,28 +76,12 @@ jobs:
         $tsIP = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
         Write-Host "Tailscale IP: $tsIP" -ForegroundColor Green
         echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
-        
-    - name: Install Google Chrome (Direct)
+
+    - name: Install Firefox
       run: |
-        Write-Host "Downloading Google Chrome..." -ForegroundColor Green
-        $chromeUrl = "https://dl.google.com/chrome/install/latest/chrome_installer.exe"
-        $installerPath = "$env:TEMP\chrome_installer.exe"
-        Invoke-WebRequest -Uri $chromeUrl -OutFile $installerPath
-        Write-Host "Installing Google Chrome silently..." -ForegroundColor Green
-        Start-Process -FilePath $installerPath -ArgumentList "/silent /install" -Wait
-        Remove-Item $installerPath -Force
-        Write-Host "Google Chrome installed!" -ForegroundColor Green
-        
-    - name: Install 7-Zip (Direct)
-      run: |
-        Write-Host "Downloading 7-Zip..." -ForegroundColor Green
-        $zipUrl = "https://www.7-zip.org/a/7z2409-x64.exe"
-        $installerPath = "$env:TEMP\7z-installer.exe"
-        Invoke-WebRequest -Uri $zipUrl -OutFile $installerPath
-        Write-Host "Installing 7-Zip silently..." -ForegroundColor Green
-        Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
-        Remove-Item $installerPath -Force
-        Write-Host "7-Zip installed!" -ForegroundColor Green
+        Write-Host "Installing Mozilla Firefox via Choco..." -ForegroundColor Green
+        choco install firefox -y
+        Write-Host "Mozilla Firefox installed successfully!" -ForegroundColor Green
         
     - name: Connection Details
       run: |
