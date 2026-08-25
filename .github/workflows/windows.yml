@@ -1,4 +1,4 @@
-name: EnigMano RDP Firefox Minimal
+name: EnigMano Ubuntu Docker RDP (Firefox)
 
 on:
   workflow_dispatch:
@@ -10,101 +10,82 @@ on:
         type: string
 
 jobs:
-  deploy-rdp:
-    runs-on: windows-latest
+  deploy-ubuntu-rdp:
+    runs-on: ubuntu-latest
     timeout-minutes: 360
     
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
-      
+
     - name: System Information
       run: |
-        Write-Host "=== ENIGMANO RDP DEPLOYMENT ===" -ForegroundColor Green
-        Write-Host "Instance Number: ${{ github.event.inputs.instance_number }}" -ForegroundColor Yellow
-        Write-Host "Runner: $env:RUNNER_NAME" -ForegroundColor Yellow
-        Write-Host "Workflow: $env:GITHUB_WORKFLOW" -ForegroundColor Yellow
-        
-        Write-Host "`n=== SYSTEM SPECIFICATIONS ===" -ForegroundColor Cyan
-        Get-ComputerInfo | Select-Object WindowsProductName, WindowsVersion, TotalPhysicalMemory
-        Get-WmiObject -Class Win32_Processor | Select-Object Name, NumberOfCores, NumberOfLogicalProcessors
-        
-    - name: Enable RDP
-      run: |
-        Write-Host "Enabling Remote Desktop..." -ForegroundColor Green
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -name "fDenyTSConnections" -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -name "UserAuthentication" -Value 1
+        echo -e "\e[32m=== ENIGMANO UBUNTU RDP DEPLOYMENT ===\e[0m"
+        echo -e "\e[33mInstance Number: ${{ github.event.inputs.instance_number }}\e[0m"
+        echo -e "\e[33mRunner: $RUNNER_NAME\e[0m"
+        echo -e "\e[36mCPU Cores: $(nproc)\e[0m"
+        echo -e "\e[36mMemory: $(free -h | awk '/^Mem:/ {print $2}')\e[0m"
 
-    - name: Optimize Windows Visuals (Super Light)
+    - name: Install Tailscale
       run: |
-        Write-Host "Disabling visual bloat for speed..." -ForegroundColor Green
-        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\VisualEffects' -Name "VisualFXSetting" -Value 2
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop' -Name "UserPreferencesMask" -Value ([byte[]](0x90,0x12,0x03,0x80,0x10,0x00,0x00,0x00))
-        Set-ItemProperty -Path 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced' -Name "TaskbarAnimations" -Value 0
-        Set-ItemProperty -Path 'HKCU:\Control Panel\Desktop\WindowMetrics' -Name "MinAnimate" -Value "0"
-        
-    - name: Create User Account
+        echo -e "\e[32mInstalling Tailscale...\e[0m"
+        curl -fsSL https://tailscale.com/install.sh | sh
+
+    - name: Connect to Tailscale
       run: |
-        Write-Host "Setting up user account..." -ForegroundColor Green
-        $Password = ConvertTo-SecureString "P@ssw0rd!" -AsPlainText -Force
-        Set-LocalUser -Name "runneradmin" -Password $Password
-        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin"
-        Write-Host "Username: runneradmin" -ForegroundColor Yellow
-        Write-Host "Password: P@ssw0rd!" -ForegroundColor Yellow
-        
-    - name: Install Tailscale (Silent)
-      run: |
-        Write-Host "Downloading Tailscale..." -ForegroundColor Green
-        $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
-        $installerPath = "$env:TEMP\tailscale.msi"
-        Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
-        Write-Host "Installing Tailscale silently..." -ForegroundColor Green
-        Start-Process msiexec.exe -ArgumentList "/i `"$installerPath`" /quiet /norestart" -Wait
-        Remove-Item $installerPath -Force
-        Write-Host "Tailscale installed successfully!" -ForegroundColor Green
-        
-    - name: Start Tailscale
-      run: |
-        Write-Host "Starting Tailscale..." -ForegroundColor Green
-        & "C:\Program Files\Tailscale\tailscale.exe" up --authkey ${{ secrets.TAILSCALE_AUTH_KEY }} --hostname "enigmano-${{ github.run_id }}"
-        Start-Sleep -Seconds 15
-        
+        echo -e "\e[32mConnecting to Tailscale...\e[0m"
+        sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname="enigmano-ubuntu-${{ github.run_id }}"
+
     - name: Get Tailscale IP
       run: |
-        $tsIP = & "C:\Program Files\Tailscale\tailscale.exe" ip -4
-        Write-Host "Tailscale IP: $tsIP" -ForegroundColor Green
-        echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+        TS_IP=$(tailscale ip -4)
+        echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
+        echo -e "\e[32mTailscale IP: $TS_IP\e[0m"
 
-    - name: Install Firefox Only
+    - name: Run Desktop RDP Container with Firefox
       run: |
-        Write-Host "Installing Mozilla Firefox..." -ForegroundColor Green
-        choco install firefox -y
-        Write-Host "Firefox ready!" -ForegroundColor Green
-        
+        echo -e "\e[32mStarting Lightweight RDP Docker Container...\e[0m"
+        docker run -d \
+          --name=ubuntu-rdp \
+          -e PUID=1000 \
+          -e PGID=1000 \
+          -e TZ=America/Sao_Paulo \
+          -e USERNAME=runneradmin \
+          -e PASSWORD=P@ssw0rd! \
+          -p 3389:3389 \
+          --shm-size=2gb \
+          --restart unless-stopped \
+          lscr.io/linuxserver/rdesktop:ubuntu-xfce
+          
+        sleep 10
+        echo -e "\e[32mInstalling Firefox inside container...\e[0m"
+        docker exec -u root ubuntu-rdp apt-get update
+        docker exec -u root ubuntu-rdp apt-get install -y firefox
+        echo -e "\e[32mSetup completed successfully!\e[0m"
+
     - name: Connection Details
       run: |
-        Write-Host "`n=== CONNECTION DETAILS (TAILSCALE) ===" -ForegroundColor Green
-        Write-Host "╔══════════════════════════════════════╗" -ForegroundColor Cyan
-        Write-Host "║         ENIGMANO RDP ACCESS          ║" -ForegroundColor Cyan  
-        Write-Host "╠══════════════════════════════════════╣" -ForegroundColor Cyan
-        Write-Host "║ Host: $env:TAILSCALE_IP              ║" -ForegroundColor White
-        Write-Host "║ Username: runneradmin                ║" -ForegroundColor White
-        Write-Host "║ Password: P@ssw0rd!                  ║" -ForegroundColor White
-        Write-Host "╚══════════════════════════════════════╝" -ForegroundColor Cyan
+        echo -e "\e[32m\n=== CONNECTION DETAILS (WINDOWS APP / RDP) ===\e[0m"
+        echo -e "\e[36m╔══════════════════════════════════════════════════╗\e[0m"
+        echo -e "\e[36m║             ENIGMANO UBUNTU RDP                  ║\e[0m"
+        echo -e "\e[36m╠══════════════════════════════════════════════════╣\e[0m"
+        echo -e "\e[37m║ Host: $TAILSCALE_IP                              ║\e[0m"
+        echo -e "\e[37m║ Username: runneradmin                            ║\e[0m"
+        echo -e "\e[37m║ Password: P@ssw0rd!                              ║\e[0m"
+        echo -e "\e[36m╚══════════════════════════════════════════════════╝\e[0m"
         
+        echo -e "\e[33m\nInstruções de Acesso:\e[0m"
+        echo -e "\e[37m1. Conecte no Tailscale no seu dispositivo\e[0m"
+        echo -e "\e[37m2. Abra o app Conexão de Área de Trabalho (Windows App / RDP)\e[0m"
+        echo -e "\e[37m3. Digite o IP: $TAILSCALE_IP\e[0m"
+        echo -e "\e[37m4. Entre com o usuário 'runneradmin' e senha 'P@ssw0rd!'\e[0m"
+
     - name: Keep Session Alive
       run: |
-        Write-Host "`n=== SESSION ACTIVE ===" -ForegroundColor Green
-        $counter = 0
-        while ($true) {
-          $counter++
-          Write-Host "Heartbeat #$counter ($(Get-Date))" -ForegroundColor Green
-          
-          $tsStatus = & "C:\Program Files\Tailscale\tailscale.exe" status
-          if ($tsStatus -notmatch "active") {
-            & "C:\Program Files\Tailscale\tailscale.exe" up --authkey ${{ secrets.TAILSCALE_AUTH_KEY }} --hostname "enigmano-${{ github.run_id }}"
-          }
-          
-          Start-Sleep -Seconds 60
-        }
+        echo -e "\e[32m\n=== SESSION ACTIVE ===\e[0m"
+        counter=0
+        while true; do
+          counter=$((counter+1))
+          echo "Heartbeat #$counter ($(date))"
+          sleep 60
+        done
