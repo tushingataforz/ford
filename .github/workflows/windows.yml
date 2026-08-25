@@ -1,4 +1,4 @@
-name: EnigMano Windows 10 KVM RDP
+name: EnigMano Windows 10 Docker RDP
 
 on:
   workflow_dispatch:
@@ -31,27 +31,25 @@ jobs:
         TS_IP=$(tailscale ip -4)
         echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
 
-    - name: Run Windows 10 KVM Container
+    - name: Run Windows 10 Container
       run: |
-        echo "Iniciando Windows 10 com Aceleração KVM..."
+        echo "Iniciando Windows 10 no Docker..."
         docker run -d \
           --name win10 \
           --net=host \
-          --device=/dev/kvm \
           --cap-add=NET_ADMIN \
           -e VERSION="win10" \
-          -e RAM_SIZE="6G" \
+          -e RAM_SIZE="4G" \
           -e CPU_CORES="2" \
           -e DISK_SIZE="25G" \
-          -e MANUAL="N" \
           -e USERNAME="runneradmin" \
           -e PASSWORD="admin" \
           --shm-size=2gb \
           --restart unless-stopped \
-          dockur/windows
+          dockurr/windows
 
-        echo "Aguardando inicialização da VM..."
-        sleep 40
+        echo "Aguardando inicialização do sistema..."
+        sleep 60
 
     - name: Connection Details
       run: |
