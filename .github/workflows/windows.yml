@@ -1,4 +1,4 @@
-name: EnigMano Ubuntu Docker RDP (Firefox)
+name: EnigMano Debian XFCE4 RDP (Firefox)
 
 on:
   workflow_dispatch:
@@ -10,7 +10,7 @@ on:
         type: string
 
 jobs:
-  deploy-ubuntu-rdp:
+  deploy-xfce-rdp:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     
@@ -18,59 +18,54 @@ jobs:
     - name: Checkout Repository
       uses: actions/checkout@v4
 
-    - name: System Information
-      run: |
-        echo -e "\e[32m=== ENIGMANO UBUNTU RDP DEPLOYMENT ===\e[0m"
-        echo -e "\e[33mInstance Number: ${{ github.event.inputs.instance_number }}\e[0m"
-        echo -e "\e[33mRunner: $RUNNER_NAME\e[0m"
-        echo -e "\e[36mCPU Cores: $(nproc)\e[0m"
-        echo -e "\e[36mMemory: $(free -h | awk '/^Mem:/ {print $2}')\e[0m"
-
     - name: Install Tailscale
       run: |
-        echo -e "\e[32mInstalling Tailscale...\e[0m"
         curl -fsSL https://tailscale.com/install.sh | sh
 
     - name: Connect to Tailscale
       run: |
-        echo -e "\e[32mConnecting to Tailscale...\e[0m"
-        sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname="enigmano-ubuntu-${{ github.run_id }}"
+        sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname="enigmano-xfce-${{ github.run_id }}"
 
     - name: Get Tailscale IP
       run: |
         TS_IP=$(tailscale ip -4)
         echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
-        echo -e "\e[32mTailscale IP: $TS_IP\e[0m"
 
-    - name: Run Remote Desktop Container
+    - name: Setup Debian XFCE4 Container with XRDP
       run: |
-        echo -e "\e[32mStarting RDP Container with Firefox...\e[0m"
+        # Sobe um container Debian oficial
         docker run -d \
-          --name=ubuntu-rdp \
-          -e USER_USERNAME=runneradmin \
-          -e USER_PASSWORD=P@ssw0rd! \
-          -p 3389:3389 \
+          --name=debian-xfce \
+          --net=host \
+          --privileged \
           --shm-size=2gb \
-          --restart unless-stopped \
-          scottyhardy/docker-remote-desktop
+          debian:bookworm-slim sleep infinity
 
-        sleep 10
-        echo -e "\e[32mSetup completed successfully!\e[0m"
+        # Atualiza pacotes e instala XFCE4, XRDP e Firefox
+        docker exec debian-xfce apt-get update
+        docker exec debian-xfce apt-get install -y xfce4 xfce4-goodies xrdp firefox-esr sudo dbus-x11
+
+        # Cria o usuario runneradmin
+        docker exec debian-xfce useradd -m -s /bin/bash runneradmin
+        docker exec debian-xfce bash -c "echo 'runneradmin:admin' | chpasswd"
+        docker exec debian-xfce usermod -aG sudo runneradmin
+
+        # Configura o XRDP para iniciar a sessao do XFCE4 direto
+        docker exec debian-xfce bash -c "echo 'startxfce4' > /home/runneradmin/.xsession"
+        docker exec debian-xfce chown runneradmin:runneradmin /home/runneradmin/.xsession
+
+        # Inicia o servico de RDP
+        docker exec debian-xfce service xrdp start
 
     - name: Connection Details
       run: |
-        echo -e "\e[32m\n=== CONNECTION DETAILS (WINDOWS APP / RDP) ===\e[0m"
-        echo -e "\e[36m╔══════════════════════════════════════════════════╗\e[0m"
-        echo -e "\e[36m║             ENIGMANO UBUNTU RDP                  ║\e[0m"
-        echo -e "\e[36m╠══════════════════════════════════════════════════╣\e[0m"
-        echo -e "\e[37m║ Host: $TAILSCALE_IP                              ║\e[0m"
-        echo -e "\e[37m║ Username: runneradmin                            ║\e[0m"
-        echo -e "\e[37m║ Password: P@ssw0rd!                              ║\e[0m"
-        echo -e "\e[36m╚══════════════════════════════════════════════════╝\e[0m"
+        echo -e "\e[32m\n=== CONECTE NO WINDOWS APP COM ESSES DADOS ===\e[0m"
+        echo "IP / Host: $TAILSCALE_IP"
+        echo "Usuário: runneradmin"
+        echo "Senha: admin"
 
     - name: Keep Session Alive
       run: |
-        echo -e "\e[32m\n=== SESSION ACTIVE ===\e[0m"
         counter=0
         while true; do
           counter=$((counter+1))
