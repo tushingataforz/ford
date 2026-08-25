@@ -42,22 +42,19 @@ jobs:
         echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
         echo -e "\e[32mTailscale IP: $TS_IP\e[0m"
 
-    - name: Run Desktop RDP Container
+    - name: Run Remote Desktop Container
       run: |
-        echo -e "\e[32mStarting Lightweight RDP Docker Container...\e[0m"
+        echo -e "\e[32mStarting RDP Container with Firefox...\e[0m"
         docker run -d \
           --name=ubuntu-rdp \
-          -e CUSTOM_USER=runneradmin \
-          -e PASSWORD=P@ssw0rd! \
+          -e USER_USERNAME=runneradmin \
+          -e USER_PASSWORD=P@ssw0rd! \
           -p 3389:3389 \
           --shm-size=2gb \
           --restart unless-stopped \
-          danielguerra/ubuntu-xrdp
-          
+          scottyhardy/docker-remote-desktop
+
         sleep 10
-        echo -e "\e[32mInstalling Firefox inside container...\e[0m"
-        docker exec -u root ubuntu-rdp apt-get update
-        docker exec -u root ubuntu-rdp apt-get install -y firefox
         echo -e "\e[32mSetup completed successfully!\e[0m"
 
     - name: Connection Details
