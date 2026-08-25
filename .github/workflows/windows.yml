@@ -26,12 +26,15 @@ jobs:
         echo -e "\e[36mCPU Cores: $(nproc)\e[0m"
         echo -e "\e[36mMemory: $(free -h | awk '/^Mem:/ {print $2}')\e[0m"
 
+    - name: Install Tailscale
+      run: |
+        echo -e "\e[32mInstalling Tailscale...\e[0m"
+        curl -fsSL https://tailscale.com/install.sh | sh
+
     - name: Connect to Tailscale
-      uses: tailscale/github-action@v2
-      with:
-        oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-        oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-        tags: tag:ci
+      run: |
+        echo -e "\e[32mConnecting to Tailscale...\e[0m"
+        sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname="enigmano-docker-${{ github.run_id }}"
 
     - name: Get Tailscale IP
       run: |
@@ -65,7 +68,7 @@ jobs:
         echo -e "\e[36m╚══════════════════════════════════════════════════╝\e[0m"
         
         echo -e "\e[33m\nInstruções de Acesso:\e[0m"
-        echo -e "\e[37m1. Conecte no seu Tailscale pelo celular, PC ou tablet\e[0m"
+        echo -e "\e[37m1. Conecte no seu Tailscale pelo celular ou PC\e[0m"
         echo -e "\e[37m2. Abra o navegador e acesse: http://$TAILSCALE_IP:3000\e[0m"
 
     - name: Keep Session Alive
