@@ -1,4 +1,4 @@
-name: EnigMano Debian XFCE4 RDP (Firefox)
+name: EnigMano Fast XFCE RDP (Ultra Light)
 
 on:
   workflow_dispatch:
@@ -31,35 +31,52 @@ jobs:
         TS_IP=$(tailscale ip -4)
         echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
 
-    - name: Setup Debian XFCE4 Container with XRDP
+    - name: Setup Optimized Debian XFCE4
       run: |
-        # Sobe um container Debian oficial
         docker run -d \
           --name=debian-xfce \
           --net=host \
           --privileged \
-          --shm-size=2gb \
+          --shm-size=4gb \
           debian:bookworm-slim sleep infinity
 
-        # Atualiza pacotes e instala XFCE4, XRDP e Firefox
+        # Instalação minimalista de pacotes sem extras pesados
         docker exec debian-xfce apt-get update
-        docker exec debian-xfce apt-get install -y xfce4 xfce4-goodies xrdp firefox-esr sudo dbus-x11
+        docker exec debian-xfce apt-get install -y --no-install-recommends \
+          xfce4 xfwm4 xfce4-terminal xrdp firefox-esr sudo dbus-x11
 
-        # Cria o usuario runneradmin
+        # Criação do usuário
         docker exec debian-xfce useradd -m -s /bin/bash runneradmin
         docker exec debian-xfce bash -c "echo 'runneradmin:admin' | chpasswd"
         docker exec debian-xfce usermod -aG sudo runneradmin
 
-        # Configura o XRDP para iniciar a sessao do XFCE4 direto
-        docker exec debian-xfce bash -c "echo 'startxfce4' > /home/runneradmin/.xsession"
-        docker exec debian-xfce chown runneradmin:runneradmin /home/runneradmin/.xsession
+        # Desativa efeitos visuais/sombras para tirar o lag
+        docker exec debian-xfce mkdir -p /home/runneradmin/.config/xfce4/xfconf/xfce-perchannel-xml
+        docker exec debian-xfce bash -c "cat << 'EOF' > /home/runneradmin/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml
+        <?xml version=\"1.0\" encoding=\"UTF-8\"?>
+        <channel name=\"xfwm4\" version=\"1.0\">
+          <property name=\"general\" type=\"empty\">
+            <property name=\"use_compositing\" type=\"bool\" value=\"false\"/>
+          </property>
+        </channel>
+        EOF"
 
-        # Inicia o servico de RDP
+        # Configura sessão XFCE
+        docker exec debian-xfce bash -c "echo 'startxfce4' > /home/runneradmin/.xsession"
+
+        # Otimiza o XRDP para foco em performance e menor latência
+        docker exec debian-xfce sed -i 's/max_bpp=32/max_bpp=16/g' /etc/xrdp/xrdp.ini
+        docker exec debian-xfce sed -i 's/crypt_level=high/crypt_level=low/g' /etc/xrdp/xrdp.ini
+
+        # Permissões do usuário
+        docker exec debian-xfce chown -R runneradmin:runneradmin /home/runneradmin
+
+        # Inicia o serviço RDP
         docker exec debian-xfce service xrdp start
 
     - name: Connection Details
       run: |
-        echo -e "\e[32m\n=== CONECTE NO WINDOWS APP COM ESSES DADOS ===\e[0m"
+        echo -e "\e[32m\n=== CONECTE NO WINDOWS APP ===\e[0m"
         echo "IP / Host: $TAILSCALE_IP"
         echo "Usuário: runneradmin"
         echo "Senha: admin"
