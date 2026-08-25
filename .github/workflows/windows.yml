@@ -15,6 +15,8 @@ jobs:
     steps:
     - name: Checkout Repository
       uses: actions/checkout@v4
+      with:
+        submodules: true
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -36,5 +38,5 @@ jobs:
         file: ./Dockerfile
         push: true
         tags: |
-          ghcr.io/${{ github.repository_owner }}/meu-app:latest
-          ghcr.io/${{ github.repository_owner }}/meu-app:${{ github.sha }}
+          ghcr.io/${{ github.repository_owner }}/ford:latest
+          ghcr.io/${{ github.repository_owner }}/ford:${{ github.sha }}
