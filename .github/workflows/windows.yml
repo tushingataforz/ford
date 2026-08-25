@@ -1,4 +1,4 @@
-name: EnigMano Windows 10 Docker RDP
+name: EnigMano Windows 10 Docker Web/RDP
 
 on:
   workflow_dispatch:
@@ -36,7 +36,9 @@ jobs:
         echo "Iniciando Windows 10 no Docker..."
         docker run -d \
           --name win10 \
-          --net=host \
+          -p 8006:8006 \
+          -p 3389:3389/tcp \
+          -p 3389:3389/udp \
           --cap-add=NET_ADMIN \
           -e VERSION="win10" \
           -e RAM_SIZE="4G" \
@@ -48,12 +50,14 @@ jobs:
           --restart unless-stopped \
           dockurr/windows
 
-        echo "Aguardando inicialização do sistema..."
-        sleep 60
+        echo "Aguardando inicialização do servidor web..."
+        sleep 30
 
     - name: Connection Details
       run: |
-        echo -e "\e[32m\n=== CONECTE NO WINDOWS APP ===\e[0m"
+        echo -e "\e[32m\n=== ACOMPANHE A INSTALAÇÃO NO NAVEGADOR ===\e[0m"
+        echo "Link Web (VNC): http://$TAILSCALE_IP:8006"
+        echo -e "\e[32m\n=== CONECTE NO WINDOWS APP (QUANDO FINALIZAR) ===\e[0m"
         echo "Host: $TAILSCALE_IP"
         echo "Usuário: runneradmin"
         echo "Senha: admin"
