@@ -1,44 +1,9 @@
-name: Ubuntu VNC Desktop with Tailscale
-
-on:
-  workflow_dispatch:
-    inputs:
-      instance_number:
-        description: 'Número da Instância (1-10)'
-        required: true
-        default: '1'
-        type: string
-
-jobs:
-  deploy-vnc:
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-
-    steps:
-    - name: Checkout do Repositório
-      uses: actions/checkout@v4
-
-    - name: Informações do Sistema
-      run: |
-        echo "=== ENIGMANO VNC DEPLOYMENT ==="
-        echo "Instância: ${{ github.event.inputs.instance_number }}"
-        echo "OS: $(lsb_release -ds)"
-        echo "Kernel: $(uname -r)"
-        echo "RAM Total: $(free -h | awk '/^Mem:/ {print $2}')"
-        echo "CPU Cores: $(nproc)"
-
-    - name: Instalar Interface XFCE, VNC e Firefox
-      run: |
-        sudo apt update
-        sudo apt install -y xfce4 xfce4-goodies tightvncserver firefox dbus-x11
-        echo "Pacotes de interface e VNC instalados com sucesso!"
-
-    - name: Configurar Senha e Sessão do VNC
+- name: Configurar Senha e Sessão do VNC
       run: |
         mkdir -p ~/.vnc
-        # Define a senha do VNC como "P@ssw0rd!" (máximo 8 caracteres suportados pelo VNC)
-        echo "P@ssw0rd" | vncpasswd -f > ~/.vnc/passwords
-        chmod 600 ~/.vnc/passwords
+        # Gera o arquivo de senha do VNC usando pipe seguro
+        printf "P@ssw0rd\nP@ssw0rd\n\n" | vncpasswd
+        chmod 600 ~/.vnc/passwd
 
         # Configura o script xstartup para carregar o XFCE
         cat << 'EOF' > ~/.vnc/xstartup
@@ -52,44 +17,3 @@ jobs:
       run: |
         vncserver :1 -geometry 1280x720 -depth 24
         echo "Servidor VNC rodando na porta 5901!"
-
-    - name: Instalar e Iniciar Tailscale
-      run: |
-        curl -fsSL https://tailscale.com/install.sh | sh
-        sudo tailscale up --authkey ${{ secrets.TAILSCALE_AUTH_KEY }} --hostname "enigmano-vnc-${{ github.run_id }}"
-        sleep 10
-        TS_IP=$(tailscale ip -4)
-        echo "TAILSCALE_IP=$TS_IP" >> $GITHUB_ENV
-        echo "Tailscale IP obtido: $TS_IP"
-
-    - name: Detalhes de Conexão
-      run: |
-        echo -e "\n=== DETALHES DE CONEXÃO (VNC + TAILSCALE) ==="
-        echo "╔══════════════════════════════════════════════╗"
-        echo "║             ENIGMANO VNC ACCESS              ║"
-        echo "╠══════════════════════════════════════════════╣"
-        echo "║ Endereço VNC: $TAILSCALE_IP:5901             ║"
-        echo "║ Porta VNC: 5901 (ou display :1)              ║"
-        echo "║ Senha VNC: P@ssw0rd                          ║"
-        echo "╚══════════════════════════════════════════════╝"
-        echo ""
-        echo "Como conectar pelo celular/PC:"
-        echo "1. Abra o app do VNC Viewer (ex: RealVNC Viewer)"
-        echo "2. Digite o IP: $TAILSCALE_IP:5901"
-        echo "3. Digite a senha: P@ssw0rd"
-
-    - name: Manter Sessão Ativa
-      run: |
-        echo "Sessão VNC ativa e monitorando..."
-        counter=0
-        while true; do
-          counter=$((counter+1))
-          echo "Keep-alive #$counter - $(date)"
-          
-          if ! pgrep -x "Xtightvnc" > /dev/null; then
-            echo "VNC caiu, reiniciando..."
-            vncserver :1 -geometry 1280x720 -depth 24
-          fi
-          
-          sleep 60
-        done
